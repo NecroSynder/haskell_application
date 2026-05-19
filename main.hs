@@ -1,12 +1,14 @@
+import qualified Data.Map.Strict as Map
 import Data.List (group, sort, sortBy)
 import Data.Ord (comparing)
 import Data.Char (toLower, isPunctuation)
 
--- =====================================================================
--- REAL WORLD MACHINE PROBLEM: NLP Search Engine Document Ranking
--- LANGUAGE: Haskell
--- OBJECTIVE: Clean raw text, tokenize it, and rank documents by relevance
--- =====================================================================
+-- ==========================================
+-- TYPE DEFINITIONS
+-- ==========================================
+type DocId = Int
+type TermFrequency = Int
+type InvertedIndex = Map.Map String [(DocId, TermFrequency)]
 
 -- ==========================================
 -- PHASE 1: Data Normalization (Cleaning)
@@ -21,61 +23,76 @@ wordCount :: String -> [(String, Int)]
 wordCount = map (\ws -> (head ws, length ws)) . group . sort . words . cleanText
 
 -- ==========================================
--- PHASE 3: Information Retrieval (Scoring)
+-- PHASE 3: Indexing (The Inverted Index)
 -- ==========================================
-getQueryScore :: String -> [(String, Int)] -> Int
-getQueryScore query docFrequencies = 
+-- This phase runs once in the "backend" to pre-calculate word locations
+buildIndex :: [(DocId, String)] -> InvertedIndex
+buildIndex docs = 
     let 
-        queryWords = words (cleanText query) 
-        getSingleWordScore word = 
-            case lookup word docFrequencies of
-                Just count -> count
-                Nothing    -> 0
-    in sum (map getSingleWordScore queryWords)
+        -- 1. Extract words and frequencies for each document
+        analyzedDocs = map (\(dId, text) -> (dId, wordCount text)) docs
+        
+        -- 2. Flatten everything so the Word is the first element
+        flattened = [ (word, [(dId, freq)]) 
+                    | (dId, wordCounts) <- analyzedDocs
+                    , (word, freq) <- wordCounts ]
+    in 
+        -- 3. Build the map. Merging lists for words that appear in multiple docs.
+        Map.fromListWith (++) flattened
 
 -- ==========================================
--- PHASE 4: Search Engine Logic (Ranking)
+-- PHASE 4: Search Engine Logic (Query & Rank)
 -- ==========================================
-rankDocuments :: String -> [String] -> [(Int, String)]
-rankDocuments query docs = 
+-- This phase runs instantly for the user, completely skipping unneeded documents
+searchIndex :: InvertedIndex -> String -> [(DocId, Int)]
+searchIndex index query = 
     let 
-        docFrequencies = map wordCount docs
-        scores = map (getQueryScore query) docFrequencies
-        scoredDocs = zip scores docs
-        matchedDocs = filter (\(score, _) -> score > 0) scoredDocs
-    in reverse (sortBy (comparing fst) matchedDocs)
+        queryWords = words (cleanText query)
+        
+        -- Instantly fetch the document lists for our search words
+        matches = map (\w -> Map.findWithDefault [] w index) queryWords
+        allMatchedDocs = concat matches
+        
+        -- Group by DocId and sum the frequency scores
+        unsortedResults = Map.toList (Map.fromListWith (+) allMatchedDocs)
+    in 
+        -- Sort by score in descending order
+        reverse (sortBy (comparing snd) unsortedResults)
 
 -- ==========================================
 -- PHASE 5: Application Execution
 -- ==========================================
 main :: IO ()
 main = do
-    -- Simulated Database of Web Documents
-    let doc1 = "Haskell is pure. Haskell is great for data." 
-    let doc2 = "Data science is fun. Python is used for data." 
-    let doc3 = "Haskell is pure functional programming. It is fun!" 
+    -- Simulated Database of Web Documents (Now mapped with Document IDs)
+    let rawDocs = [ (1, "Haskell is pure. Haskell is great for data.")
+                  , (2, "Data science is fun. Python is used for data.")
+                  , (3, "Haskell is pure functional programming. It is fun!") 
+                  ]
     
+    -- "Backend": Build the index from the raw documents
+    let index = buildIndex rawDocs
+    
+    -- "Frontend": User submits a query
     let query = "Haskell Data"
-    let results = rankDocuments query [doc1, doc2, doc3]
+    let results = searchIndex index query
 
     -- Explicitly formatting the output for real-world context
     putStrLn "\n======================================================"
-    putStrLn "  REAL-WORLD NLP APPLICATION: SEARCH ENGINE SIMULATOR"
+    putStrLn "  REAL-WORLD NLP: INVERTED INDEX SEARCH ENGINE"
     putStrLn "======================================================"
     
-    putStrLn "\n[1] SCANNING DATABASE DOCUMENTS..."
-    putStrLn ("  -> Doc A: " ++ doc1)
-    putStrLn ("  -> Doc B: " ++ doc2)
-    putStrLn ("  -> Doc C: " ++ doc3)
+    putStrLn "\n[1] INDEXING DATABASE DOCUMENTS..."
+    mapM_ (\(dId, text) -> putStrLn $ "  -> Doc " ++ show dId ++ ": " ++ text) rawDocs
     
     putStrLn "\n[2] PROCESSING SEARCH QUERY..."
     putStrLn ("  -> User searched for: '" ++ query ++ "'")
     
-    putStrLn "\n[3] EXTRACTING, SCORING, AND RANKING RESULTS..."
+    putStrLn "\n[3] EXTRACTING AND RANKING RESULTS VIA INVERTED INDEX..."
     putStrLn "------------------------------------------------------"
-    putStrLn " RANK | SCORE | DOCUMENT TEXT"
+    putStrLn " DOC ID | SCORE"
     putStrLn "------------------------------------------------------"
     
-    -- Print each result on a new line for maximum readability
-    mapM_ print results
+    -- Print each result on a new line
+    mapM_ (\(dId, score) -> putStrLn $ "   " ++ show dId ++ "    |   " ++ show score) results
     putStrLn "======================================================\n"
