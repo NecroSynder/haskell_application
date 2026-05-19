@@ -1,4 +1,5 @@
 import qualified Data.Map.Strict as Map
+-- use import qualified to prevent the compiler from getting confused about which version of a function you want to use.
 import Data.List (group, sort, sortBy)
 import Data.Ord (comparing)
 import Data.Char (toLower, isPunctuation)
@@ -33,9 +34,7 @@ buildIndex docs =
         analyzedDocs = map (\(dId, text) -> (dId, wordCount text)) docs
         
         -- 2. Flatten everything so the Word is the first element
-        flattened = [ (word, [(dId, freq)]) 
-                    | (dId, wordCounts) <- analyzedDocs
-                    , (word, freq) <- wordCounts ]
+        flattened = [ (word, [(dId, freq)]) | (dId, wordCounts) <- analyzedDocs, (word, freq) <- wordCounts ]
     in 
         -- 3. Build the map. Merging lists for words that appear in multiple docs.
         Map.fromListWith (++) flattened
@@ -65,9 +64,9 @@ searchIndex index query =
 main :: IO ()
 main = do
     -- Simulated Database of Web Documents (Now mapped with Document IDs)
-    let rawDocs = [ (1, "Haskell is pure. Haskell is great for data.")
-                  , (2, "Data science is fun. Python is used for data.")
-                  , (3, "Haskell is pure functional programming. It is fun!") 
+    let rawDocs = [ (1, "Haskell is pure. Haskell is great for data."),
+                    (2, "Data science is fun. Python is used for data."),
+                    (3, "Haskell is pure functional programming. It is fun!") 
                   ]
     
     -- "Backend": Build the index from the raw documents
