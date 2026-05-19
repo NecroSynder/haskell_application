@@ -1,13 +1,14 @@
-# Haskell NLP Search Engine Simulator
+# Haskell NLP Search Engine Simulator (Inverted Index Edition)
 
 ## Overview:
-This program is a lightweight, real-world simulation of a Natural Language Processing (NLP) search engine. Written in Haskell, it demonstrates core data processing pipelines used in information retrieval systems: data normalization, tokenization (Bag-of-Words), scoring, and ranking.
+This program is a lightweight, real-world simulation of a Natural Language Processing (NLP) search engine. Written in Haskell, it demonstrates core data processing pipelines used in information retrieval systems: data normalization, tokenization (Bag-of-Words), scoring, and ranking. This upgraded version implements an **Inverted Index** architecture using `Data.Map` to completely bypass linear document scanning, achieving $O(\log n)$ search speeds.
 
 **Dependencies:**
 The module relies on standard Haskell libraries for list manipulation, ordering, and character evaluation:
 - `Data.List` (`group`, `sort`, `sortBy`)
 - `Data.Ord` (`comparing`)
 - `Data.Char` (`toLower`, `isPunctuation`)
+- `Data.Map.Strict` (New dependency for building the Inverted Index dictionary)
 
 ## Function Reference
 
@@ -23,27 +24,22 @@ This converts a cleaned string into a *Bag-of-Words* frequency map.
 - **Process:** It cleans the input string, splits it into individual words, sorts them alphabetically, groups identical words together, and finally counts the length of each group.
 - **Output:** Returns a list of tuples containing the tokenized word and its frequency count (e.g., `[("data", 2), ("haskell", 2)]`).
 
-**Phase 3: Information Retrieval (Scoring)**
-`getQueryScore :: String -> [(String, Int)] -> Int`
+**Phase 3: Indexing (The Inverted Index)**
+`buildIndex :: [(DocId, String)] -> InvertedIndex`
 
-It calculates a relevance score for a single document against a user's search query.
+This phase runs once in the "backend" to pre-calculate word locations and their frequencies across the entire database.
+- **Process:** It extracts words and frequencies for each document using `wordCount`, flattens the data so that the words become the primary keys, and builds a `Map`. If a word appears in multiple documents, their respective lists are concatenated.
+- **Output:** An `InvertedIndex` (a `Map.Map String [(DocId, TermFrequency)]`) allowing instant document location lookups for any given word.
 
-- **Process:** It normalizes the query using `cleanText` and splits it into individual search terms. For each term, it looks up its frequency in the document's `docFrequencies` list. It then sums the frequencies of all matched terms to generate a final score.
-- `Output:` An integer representing the total number of times any of the query words appeared in the document.
-
-**Phase 4: Search Engine Logic (Ranking)**
-`rankDocuments :: String -> [String] -> [(Int, String)]`
+**Phase 4: Search Engine Logic (Query & Rank)**
+`searchIndex :: InvertedIndex -> String -> [(DocId, Int)]`
 
 The core search engine logic that evaluates and ranks a list of documents based on a user's query.
-
-- Process: 
-  -  Converts all raw documents into frequency maps.
-  - Scores each document against the query.
-  - Pairs the raw document text with its calculated score.
-  - Filters out any documents with a score of `0` (irrelevant documents).
+- **Process:** - Normalizes the query using `cleanText` and splits it into individual search terms.
+  - Instantly fetches the matching `[(DocId, Frequency)]` lists directly from the `InvertedIndex` for each search term.
+  - Groups the matches by Document ID and sums the frequency scores together.
   - Sorts the remaining documents in descending order (highest score first).
-- Output: 
-  - A list of tuples containing the score and the corresponding document string, ordered by relevance.
+- **Output:** - A list of tuples containing the Document ID and its corresponding score, ordered by relevance.
 
 **Application Execution (`main`)**
 `main :: IO ()`
